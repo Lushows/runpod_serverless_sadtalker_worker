@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install dependencies and essential tools (incl. compilers + libs SadTalker needs)
 RUN apt-get update && \
-    apt-get install -y git ffmpeg build-essential cmake libgl1 libglib2.0-0 libsndfile1 && \
+    apt-get install -y git wget ffmpeg build-essential cmake libgl1 libglib2.0-0 libsndfile1 && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Clone the SadTalker repository
@@ -23,6 +23,10 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch==1.12.1+cu113 torchvision==0.13.1+cu113 torchaudio==0.12.1 -f https://download.pytorch.org/whl/torch_stable.html && \
     pip install --no-cache-dir boto3 runpod==1.6.0 && \
     pip install --no-cache-dir -r requirements.txt
+
+# Hornear los modelos (checkpoints) DENTRO de la imagen para que el worker NO los baje en caliente.
+# Evita el crash "No such file or directory: .../checkpoints/..." y acelera el arranque.
+RUN cd /app/SadTalker && bash scripts/download_models.sh
 
 # Set the entrypoint
 CMD ["python", "-u", "/app/SadTalker/handler.py"]

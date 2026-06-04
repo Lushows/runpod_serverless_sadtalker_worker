@@ -120,7 +120,7 @@ def generate_video(args):
             background_enhancer=background_enhancer, preprocess=preprocess, img_size=size
         )
 
-        bucket_name = 'SadTalker'
+        bucket_name = os.getenv('BUCKET_NAME', 'studio-lipsync')
         output_video_path = shutil.move(result, save_dir + '.mp4')
 
         # Upload the enhanced video to S3

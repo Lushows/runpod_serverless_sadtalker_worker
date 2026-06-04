@@ -46,8 +46,11 @@ def upload_to_s3(local_file, bucket_name, object_name):
                                  aws_access_key_id=os.getenv('BUCKET_ACCESS_KEY_ID'),
                                  aws_secret_access_key=os.getenv('BUCKET_SECRET_ACCESS_KEY'),
                                  config=Config(signature_version='s3v4'))
-        s3_client.upload_file(local_file, bucket_name, object_name, ExtraArgs={'ACL': 'public-read'})
+        s3_client.upload_file(local_file, bucket_name, object_name)
 
+        public_base = os.getenv('PUBLIC_URL_BASE')
+        if public_base:
+            return f"{public_base.rstrip('/')}/{object_name}", None
         return f"{os.getenv('BUCKET_ENDPOINT_URL')}/{bucket_name}/{object_name}", None
     except Exception as e:
         return None, e

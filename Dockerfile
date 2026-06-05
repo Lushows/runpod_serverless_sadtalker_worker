@@ -24,9 +24,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir boto3 runpod==1.6.0 && \
     pip install --no-cache-dir -r requirements.txt
 
-# Hornear los modelos (checkpoints) DENTRO de la imagen para que el worker NO los baje en caliente.
-# Evita el crash "No such file or directory: .../checkpoints/..." y acelera el arranque.
-RUN cd /app/SadTalker && bash scripts/download_models.sh
+# Hornear los modelos en la imagen usando la MISMA función del worker (ya crea la carpeta).
+# Evita el crash "No such file or directory" y acelera el arranque (no baja nada en caliente).
+RUN cd /app/SadTalker && python -c "import sys; from utils.file_utils import sync_checkpoints; r,e=sync_checkpoints(); print('checkpoint bake:', e); sys.exit(1 if e else 0)"
 
 # Set the entrypoint
 CMD ["python", "-u", "/app/SadTalker/handler.py"]

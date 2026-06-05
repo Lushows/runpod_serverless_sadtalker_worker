@@ -25,6 +25,10 @@ def download_file(url, local_filename):
         print(f'[SadTalker]: Downloading {url}')
         if os.path.exists(local_filename):
             return local_filename, None
+        # Crear la carpeta destino antes de escribir (arregla 'No such file or directory' de los checkpoints).
+        parent = os.path.dirname(local_filename)
+        if parent:
+            os.makedirs(parent, exist_ok=True)
         with requests.get(url, stream=True) as r:
             r.raise_for_status()
 

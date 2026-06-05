@@ -13,21 +13,22 @@ RUN git clone https://github.com/OpenTalker/SadTalker.git /app/SadTalker
 WORKDIR /app/SadTalker
 COPY app/ /app/SadTalker
 
-# 1) PyTorch NUEVO con CUDA 12.8 (tiene kernels para Blackwell sm_120) + SDK runpod al día
+# 1) PyTorch NUEVO con CUDA 12.8 (kernels para Blackwell sm_120) + base
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128 && \
     pip install --no-cache-dir boto3 runpod requests
 
-# 2) Dependencias de SadTalker SIN los pines viejos de torch/numpy (romperían lo nuevo);
-#    numpy<2 porque varias libs viejas (numba, basicsr) no soportan numpy 2.x
+# 2) Hornear los modelos (solo necesita requests). Va ANTES de las deps que cambian,
+#    así ajustar dependencias no re-hornea los ~2 GB cada vez.
+RUN cd /app/SadTalker && python -c "import sys; from utils.file_utils import sync_checkpoints; r,e=sync_checkpoints(); print('bake:', e); sys.exit(1 if e else 0)"
+
+# 3) Dependencias de SadTalker SIN pines viejos de torch/numpy.
+#    numpy 1.23.5 = el que SadTalker espera (tiene np.float, que versiones nuevas quitaron).
 RUN sed -i '/^torch/d; /^numpy/d' requirements.txt && \
     pip install --no-cache-dir -r requirements.txt && \
-    pip install --no-cache-dir "numpy<2"
+    pip install --no-cache-dir numpy==1.23.5
 
-# 3) Parche: basicsr/gfpgan/facexlib importan torchvision.transforms.functional_tensor (eliminado en torchvision nuevo)
+# 4) Parche: basicsr/gfpgan/facexlib importan torchvision.transforms.functional_tensor (eliminado en torchvision nuevo)
 RUN find /usr/local/lib -name "*.py" -exec sed -i 's/torchvision\.transforms\.functional_tensor/torchvision.transforms.functional/g' {} +
-
-# 4) Hornear los modelos en la imagen (no se bajan en caliente)
-RUN cd /app/SadTalker && python -c "import sys; from utils.file_utils import sync_checkpoints; r,e=sync_checkpoints(); print('bake:', e); sys.exit(1 if e else 0)"
 
 CMD ["python", "-u", "/app/SadTalker/handler.py"]

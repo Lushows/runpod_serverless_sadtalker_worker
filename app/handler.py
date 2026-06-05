@@ -20,6 +20,14 @@ import torch
 from time import strftime
 import os, sys, time, subprocess
 
+# Compat torch 2.6+: weights_only pasó a True por defecto y rompe la carga de los
+# checkpoints de SadTalker (que traen objetos, no solo tensores). Forzamos weights_only=False.
+_orig_torch_load = torch.load
+def _compat_torch_load(*a, **k):
+    k.setdefault('weights_only', False)
+    return _orig_torch_load(*a, **k)
+torch.load = _compat_torch_load
+
 from src.utils.preprocess import CropAndExtract
 from src.test_audio2coeff import Audio2Coeff
 from src.facerender.animate import AnimateFromCoeff

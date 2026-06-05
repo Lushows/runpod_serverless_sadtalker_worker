@@ -18,7 +18,7 @@ from glob import glob
 import shutil
 import torch
 from time import strftime
-import os, sys, time
+import os, sys, time, subprocess
 
 from src.utils.preprocess import CropAndExtract
 from src.test_audio2coeff import Audio2Coeff
@@ -130,7 +130,7 @@ def generate_video(args):
 
         if error:
             print(f'[Enhancer][ERROR]: upload_to_s3 failed {error}')
-            sys.exit(1)
+            return None, f'subida a R2 falló: {error}'
 
         # Clean up
         shutil.rmtree(save_dir)
@@ -156,25 +156,29 @@ def handler(job):
 
     # Check required fields
     if not input_image_url:
-        print(f'[SadTalker][ERROR]: "input_image_url" is required in job input.')
-        sys.exit(1)
+        return {'error': 'falta input_image_url'}
 
     if not input_audio_url:
-        print(f'[SadTalker][ERROR]: "input_audio_url" is required in job input.')
-        sys.exit(1)
+        return {'error': 'falta input_audio_url'}
 
     # Download URls and store them in ephemeral storage
     job_input['source_image'], error = download_file(input_image_url, 'input_image.png')
 
     if error:
-        print(f'[SadTalker][ERROR]: Could not download {input_image_url} exited with error: {error}')
-        sys.exit(1)
+        return {'error': f'no pude descargar la imagen: {error}'}
 
-    job_input['driven_audio'], error = download_file(input_audio_url, 'input_audio.wav')
-
+    # Descargar el audio (cualquier formato) y CONVERTIRLO a WAV 16kHz mono con ffmpeg.
+    # Así SadTalker siempre lo lee, venga en mp3, m4a o wav.
+    raw_audio, error = download_file(input_audio_url, 'input_audio_src')
     if error:
-        print(f'[SadTalker][ERROR]: Could not download {input_audio_url} exited with error: {error}')
-        sys.exit(1)
+        return {'error': f'no pude descargar el audio: {error}'}
+    try:
+        subprocess.run(['ffmpeg', '-y', '-i', 'input_audio_src', '-ar', '16000', '-ac', '1', 'input_audio.wav'],
+                       check=True, capture_output=True)
+    except Exception as e:
+        detail = e.stderr.decode('utf-8', 'ignore')[-300:] if hasattr(e, 'stderr') and e.stderr else str(e)
+        return {'error': f'no pude convertir el audio a wav: {detail}'}
+    job_input['driven_audio'] = 'input_audio.wav'
 
     if ref_eyeblink_url:
         job_input['ref_eyeblink'], error = download_file(ref_eyeblink_url, 'eyeroll.mp4')
@@ -201,7 +205,7 @@ def handler(job):
 
     if error:
         print(f'[SadTalker][ERROR]: generate_video failed: {error}')
-        sys.exit(1)
+        return {'error': f'generate_video falló: {error}'}
     else:
         return {'output_video_url': result}
 
